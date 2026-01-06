@@ -137,7 +137,7 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
 
     for tkr in tickers:
         try:
-            # ---------------- Intraday data ----------------
+            # ---------- Intraday ----------
             with silence_stderr():
                 intraday = yf.download(
                     tkr,
@@ -149,48 +149,71 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
                 )
 
             if intraday is None or intraday.empty:
-                raise ValueError("No intraday data returned")
+                raise ValueError("No intraday data")
 
-            # Ensure timezone-aware index
             if getattr(intraday.index, "tz", None) is None:
                 intraday = intraday.copy()
                 intraday.index = intraday.index.tz_localize("UTC")
 
-            intraday_ldn = intraday.copy()
-            intraday_ldn.index = intraday_ldn.index.tz_convert("Europe/London")
+            intraday.index = intraday.index.tz_convert("Europe/London")
 
-            last_bar_ts = intraday_ldn.index[-1]
+            last_bar_ts = intraday.index[-1]
             asof_london = last_bar_ts.strftime("%Y-%m-%d %H:%M")
 
-            last = float(intraday_ldn["Close"].iloc[-1])
-            high = float(intraday_ldn["High"].max())
-            low = float(intraday_ldn["Low"].min())
+            last = float(intraday["Close"].iloc[-1])
+            high = float(intraday["High"].max())
+            low = float(intraday["Low"].min())
 
-            # ---------------- Change calculation (Yahoo-style) ----------------
+            # ---------- Previous close ----------
             prev_close = np.nan
 
+            # 1) Yahoo quote fields (may fail on Streamlit Cloud)
             try:
                 with silence_stderr():
                     t = yf.Ticker(tkr)
-                    info = getattr(t, "fast_info", None)
+                    fi = getattr(t, "fast_info", None)
 
-                if info is not None and hasattr(info, "get"):
-                    prev_close = info.get("previous_close", np.nan)
+                if fi is not None and hasattr(fi, "get"):
+                    prev_close = fi.get("previous_close", np.nan)
 
                 if pd.isna(prev_close):
                     with silence_stderr():
-                        inf = t.info
-                    prev_close = inf.get("previousClose", np.nan)
+                        info = t.info
+                    prev_close = info.get("previousClose", np.nan)
 
             except Exception:
                 prev_close = np.nan
 
-            if pd.isna(prev_close) or prev_close == 0:
+            # 2) Cloud-safe fallback: daily history
+            if pd.isna(prev_close):
+                try:
+                    with silence_stderr():
+                        daily = yf.download(
+                            tkr,
+                            period="10d",
+                            interval="1d",
+                            auto_adjust=False,
+                            progress=False,
+                            threads=False
+                        )
+
+                    if daily is not None and not daily.empty and "Close" in daily:
+                        closes = daily["Close"].dropna()
+                        if len(closes) >= 2:
+                            prev_close = float(closes.iloc[-2])
+                        elif len(closes) == 1:
+                            prev_close = float(closes.iloc[-1])
+                except Exception:
+                    pass
+
+            # ---------- Change ----------
+            if pd.isna(prev_close) or float(prev_close) == 0.0:
                 chg = np.nan
                 chg_pct = np.nan
             else:
-                chg = last - float(prev_close)
-                chg_pct = (chg / float(prev_close)) * 100
+                prev_close = float(prev_close)
+                chg = last - prev_close
+                chg_pct = (chg / prev_close) * 100.0
 
             return {
                 "Snapshot Time (London)": snapshot_time_london,
