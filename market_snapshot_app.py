@@ -434,9 +434,8 @@ def style_bond_changes(df: pd.DataFrame):
             return "color: red;"
         return ""
 
-    sty = df.style.applymap(colour, subset=["Chg (bps)"])
+    sty = df.style.map(colour, subset=["Chg (bps)"])
 
-    # Formatting
     fmt = {
         "Yield (%)": "{:.3f}",
         "Chg (bps)": "{:+.1f}",
@@ -444,6 +443,7 @@ def style_bond_changes(df: pd.DataFrame):
 
     fmt = {k: v for k, v in fmt.items() if k in df.columns}
     return sty.format(fmt, na_rep="")
+
 
 
 # -----------------------------
