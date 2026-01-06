@@ -411,9 +411,8 @@ def style_changes(df: pd.DataFrame, decimals: int):
             return "color: red;"
         return ""
 
-    sty = df.style.applymap(colour, subset=["Chg", "Chg%"])
+    sty = df.style.map(colour, subset=["Chg", "Chg%"])
 
-    # Force display formatting (this is the key bit)
     fmt = {
         "Last": f"{{:.{decimals}f}}",
         "High": f"{{:.{decimals}f}}",
@@ -422,7 +421,6 @@ def style_changes(df: pd.DataFrame, decimals: int):
         "Chg%": "{:.2f}",
     }
 
-    # Only apply formats for columns that exist
     fmt = {k: v for k, v in fmt.items() if k in df.columns}
     return sty.format(fmt, na_rep="")
 
