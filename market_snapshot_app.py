@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import contextlib
 import os
 import sys
+import requests
 
 # -----------------------------
 # Global settings
@@ -132,6 +133,17 @@ UST_YIELDS = {
 # -----------------------------
 # YFinance fetch
 # -----------------------------
+
+def yahoo_quote(symbol: str) -> dict:
+    url = "https://query1.finance.yahoo.com/v7/finance/quote"
+    r = requests.get(url, params={"symbols": symbol}, timeout=10)
+    r.raise_for_status()
+    result = r.json()["quoteResponse"]["result"]
+    return result[0] if result else {}
+
+
+
+
 def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_london: str) -> dict:
     last_err = "Unknown error"
 
