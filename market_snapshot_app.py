@@ -22,18 +22,6 @@ import requests
 # -----------------------------
 LONDON = ZoneInfo("Europe/London")
 
-@contextlib.contextmanager
-def silence_stderr():
-    """Suppress stderr (reduces yfinance noise in logs)."""
-    old = sys.stderr
-    try:
-        with open(os.devnull, "w") as devnull:
-            sys.stderr = devnull
-            yield
-    finally:
-        sys.stderr = old
-
-
 # -----------------------------
 # Asset ordering (exactly as you sent)
 # -----------------------------
@@ -150,19 +138,19 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
     for tkr in tickers:
         try:
             # ---------- Intraday ----------
-            with silence_stderr():
-                intraday = yf.download(
-                    tkr,
-                    period="2d",
-                    interval="5m",
-                    auto_adjust=False,
-                    progress=False,
-                    threads=False
-                )
+            intraday = yf.download(
+                tkr,
+                period="2d",
+                interval="5m",
+                auto_adjust=False,
+                progress=False,
+                threads=False
+            )
 
             if intraday is None or intraday.empty:
                 raise ValueError("No intraday data")
 
+            # Timezone handling
             if getattr(intraday.index, "tz", None) is None:
                 intraday = intraday.copy()
                 intraday.index = intraday.index.tz_localize("UTC")
@@ -179,35 +167,32 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
             # ---------- Previous close ----------
             prev_close = np.nan
 
-            # 1) Yahoo quote fields (may fail on Streamlit Cloud)
+            # 1) Yahoo quote fields
             try:
-                with silence_stderr():
-                    t = yf.Ticker(tkr)
-                    fi = getattr(t, "fast_info", None)
+                t = yf.Ticker(tkr)
+                fi = getattr(t, "fast_info", None)
 
                 if fi is not None and hasattr(fi, "get"):
                     prev_close = fi.get("previous_close", np.nan)
 
                 if pd.isna(prev_close):
-                    with silence_stderr():
-                        info = t.info
+                    info = t.info
                     prev_close = info.get("previousClose", np.nan)
 
             except Exception:
                 prev_close = np.nan
 
-            # 2) Cloud-safe fallback: daily history
+            # 2) Fallback: daily history
             if pd.isna(prev_close):
                 try:
-                    with silence_stderr():
-                        daily = yf.download(
-                            tkr,
-                            period="10d",
-                            interval="1d",
-                            auto_adjust=False,
-                            progress=False,
-                            threads=False
-                        )
+                    daily = yf.download(
+                        tkr,
+                        period="10d",
+                        interval="1d",
+                        auto_adjust=False,
+                        progress=False,
+                        threads=False
+                    )
 
                     if daily is not None and not daily.empty and "Close" in daily:
                         closes = daily["Close"].dropna()
@@ -215,6 +200,7 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
                             prev_close = float(closes.iloc[-2])
                         elif len(closes) == 1:
                             prev_close = float(closes.iloc[-1])
+
                 except Exception:
                     pass
 
@@ -260,6 +246,7 @@ def fetch_one(asset_name: str, tickers: list[str], group: str, snapshot_time_lon
 
 
 
+
 def snapshot(universe: dict, group: str, snapshot_time_london: str) -> pd.DataFrame:
     return pd.DataFrame([fetch_one(asset, tickers, group, snapshot_time_london) for asset, tickers in universe.items()])
 
@@ -281,34 +268,44 @@ def fetch_yield(name: str, ticker: str, snapshot_time_london: str) -> dict:
         except Exception:
             pass
 
+        # --- Fallback to info ---
         if pd.isna(last):
-            with silence_stderr():
+            try:
                 inf = y.info
-            last = inf.get("regularMarketPrice", np.nan)
-            ts = inf.get("regularMarketTime", None)
-            if ts is not None:
-                asof_london = datetime.fromtimestamp(int(ts), tz=ZoneInfo("UTC")).astimezone(LONDON).strftime("%Y-%m-%d %H:%M")
+                last = inf.get("regularMarketPrice", np.nan)
+                ts = inf.get("regularMarketTime", None)
+                if ts is not None:
+                    asof_london = (
+                        datetime.fromtimestamp(int(ts), tz=ZoneInfo("UTC"))
+                        .astimezone(LONDON)
+                        .strftime("%Y-%m-%d %H:%M")
+                    )
+            except Exception:
+                pass
 
-        # --- Fallback to history if quote fields aren't available ---
+        # --- Fallback to history ---
         if pd.isna(last):
-            with silence_stderr():
+            try:
                 hist = y.history(period="1d", interval="1m")
-            if hist is None or hist.empty:
-                with silence_stderr():
+                if hist is None or hist.empty:
                     hist = y.history(period="5d", interval="5m")
-            if hist is None or hist.empty:
-                raise ValueError("No recent quote data")
+                if hist is None or hist.empty:
+                    raise ValueError("No recent quote data")
 
-            if getattr(hist.index, "tz", None) is None:
-                hist = hist.copy()
-                hist.index = hist.index.tz_localize("UTC")
-            hist.index = hist.index.tz_convert("Europe/London")
+                if getattr(hist.index, "tz", None) is None:
+                    hist = hist.copy()
+                    hist.index = hist.index.tz_localize("UTC")
+                hist.index = hist.index.tz_convert("Europe/London")
 
-            last = float(hist["Close"].iloc[-1])
-            asof_london = hist.index[-1].strftime("%Y-%m-%d %H:%M")
+                last = float(hist["Close"].iloc[-1])
+                asof_london = hist.index[-1].strftime("%Y-%m-%d %H:%M")
+
+            except Exception:
+                pass
 
         # --- Yahoo previous close (for daily change) ---
         prev_close = np.nan
+
         try:
             fi = getattr(y, "fast_info", None)
             if fi is not None and hasattr(fi, "get"):
@@ -318,14 +315,13 @@ def fetch_yield(name: str, ticker: str, snapshot_time_london: str) -> dict:
 
         if pd.isna(prev_close):
             try:
-                with silence_stderr():
-                    inf = y.info
+                inf = y.info
                 prev_close = inf.get("previousClose", np.nan)
             except Exception:
                 prev_close = np.nan
 
         # --- Compute daily change in bps ---
-        if pd.isna(prev_close) or float(prev_close) == 0:
+        if pd.isna(prev_close) or float(prev_close) == 0.0:
             chg_bps = np.nan
         else:
             chg_bps = (float(last) - float(prev_close)) * 100.0
@@ -348,6 +344,7 @@ def fetch_yield(name: str, ticker: str, snapshot_time_london: str) -> dict:
             "Chg (bps)": np.nan,
             "Status": f"FAILED: {str(e)[:80]}",
         }
+
 
 
 
