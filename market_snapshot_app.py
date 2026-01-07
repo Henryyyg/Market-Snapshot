@@ -27,7 +27,7 @@ LONDON = ZoneInfo("Europe/London")
 # -----------------------------
 ORDER = [
     # FX - Dollar
-    "EUR/USD", "USD/JPY", "GBP/USD", "AUD/USD", "NZD/USD",
+    "DXY", "EUR/USD", "USD/JPY", "GBP/USD", "AUD/USD", "NZD/USD",
     "USD/CAD", "USD/CHF", "USD/CNH", "USD/CNY",
     # FX - Euro
     "EUR/CHF", "EUR/GBP", "EUR/SEK", "EUR/NOK", "EUR/PLN",
@@ -51,6 +51,7 @@ TENOR_ORDER = {"1M": 0, "3M": 1, "2Y": 2, "5Y": 3, "10Y": 4, "30Y": 5}
 # -----------------------------
 FX = {
     # Dollar
+    "DXY": ["DX-Y.NYB"],
     "EUR/USD": ["EURUSD=X"],
     "USD/JPY": ["JPY=X"],
     "GBP/USD": ["GBPUSD=X"],
