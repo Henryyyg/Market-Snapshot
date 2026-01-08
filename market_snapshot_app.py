@@ -38,8 +38,12 @@ ORDER = [
     "HG (Copper)", "Iron Ore", "Aluminum", "Nickel",
     # Equities (Cash)
     "Euro Stoxx 50", "Euro Stoxx 600", "DAX 40", "FTSE 100", "CAC 40", "FTSE MIB",
-    "IBEX 35", "PSI", "SMI", "AEX", "S&P 500", "NDX", "DJI", "RUT",
-    # Equities (Futures)
+    "IBEX 35", "PSI", "SMI", "AEX",
+    # Asia
+    "Nikkei 225", "Hang Seng", "Shanghai Composite", "KOSPI", "ASX 200", "NZX 50", "Nifty 50",
+    # US (Cash)
+    "S&P 500", "NDX", "DJI", "RUT",
+    # US (Futures)
     "S&P 500 Fut", "Nasdaq 100 Fut", "Russell 2000 Fut", "Dow Jones Fut"
 ]
 
@@ -88,6 +92,16 @@ COMMODITIES = {
 }
 
 EQUITIES_CASH = {
+    # Asia
+    "Nikkei 225": ["^N225"],
+    "Hang Seng": ["^HSI"],
+    "Shanghai Composite": ["000001.SS"],
+    "KOSPI": ["^KS11"],
+    "ASX 200": ["^AXJO"],
+    "NZX 50": ["^NZ50"],
+    "Nifty 50": ["^NSEI"],
+
+    # Europe
     "Euro Stoxx 50": ["^STOXX50E"],
     "Euro Stoxx 600": ["^STOXX"],
     "DAX 40": ["^GDAXI"],
@@ -98,6 +112,8 @@ EQUITIES_CASH = {
     "PSI": ["PSI20.LS"],
     "SMI": ["^SSMI"],
     "AEX": ["^AEX"],
+
+    # US
     "S&P 500": ["^GSPC"],
     "NDX": ["^NDX"],
     "DJI": ["^DJI"],
@@ -487,9 +503,28 @@ with tab_stocks:
     st.subheader("Equities")
     sub_cash, sub_fut = st.tabs(["Cash", "Futures"])
 
+    # Define groups
+    EUROPE_CASH = [
+        "Euro Stoxx 50", "Euro Stoxx 600", "DAX 40", "FTSE 100", "CAC 40", "FTSE MIB",
+        "IBEX 35", "PSI", "SMI", "AEX",
+    ]
+    US_CASH = ["S&P 500", "NDX", "DJI", "RUT"]
+    ASIA_CASH = ["Nikkei 225", "Hang Seng", "Shanghai Composite", "KOSPI", "ASX 200", "NZX 50", "Nifty 50"]
+
     with sub_cash:
-        cash_df = df[df["Asset"].isin(EQUITIES_CASH.keys())]
-        st.dataframe(style_changes(cash_df, 4), use_container_width=True)
+        tab_eu, tab_us, tab_asia = st.tabs(["Europe", "US", "Asia"])
+
+        with tab_eu:
+            eu_df = df[df["Asset"].isin(EUROPE_CASH)]
+            st.dataframe(style_changes(eu_df, 4), use_container_width=True)
+
+        with tab_us:
+            us_df = df[df["Asset"].isin(US_CASH)]
+            st.dataframe(style_changes(us_df, 4), use_container_width=True)
+
+        with tab_asia:
+            asia_df = df[df["Asset"].isin(ASIA_CASH)]
+            st.dataframe(style_changes(asia_df, 4), use_container_width=True)
 
     with sub_fut:
         fut_df = df[df["Asset"].isin(EQUITIES_FUTURES.keys())]
